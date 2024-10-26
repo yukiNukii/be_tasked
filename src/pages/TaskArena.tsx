@@ -119,7 +119,7 @@ const TaskArena: React.FC = () => {
     },
     {
       id: 5,
-      title: "チーム目標���設定",
+      title: "チーム目標設定",
       description: "チームの四半期目標をSMART原則に基づいて設定します。AIと対話しながら具体的な目標を定めましょう。",
       image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
       icon: <Users className="w-6 h-6" />,
@@ -213,14 +213,14 @@ const TaskArena: React.FC = () => {
       level: 2,
       description: "AIに少し慣れてきた方",
       recommendedTopics: [
-        "趣味や興味についての会話",
+        "趣味や興味についの会話",
         "簡単な意見交換",
         "基本的なビジネストピック"
       ]
     },
     {
       level: 3,
-      description: "AIを日常的に使用している方",
+      description: "AIを日常に使用している方",
       recommendedTopics: [
         "専門的な話題についての議論",
         "複雑な問題解決",
@@ -270,7 +270,25 @@ const TaskArena: React.FC = () => {
   const openMissionDetail = (mission: Mission) => {
     setSelectedMission(mission);
     setShowCompletionScreen(false);
-    setChatMessages([{ text: "AIアシスタト: このミッションについて、どのようにお手伝いできますか？", sender: 'bot' }]);
+    
+    // ミッションごとの初期メッセージを設定
+    let initialMessage = "";
+    switch (mission.id) {
+      case 1: // 商談後のお礼メール作成
+        initialMessage = "商談後のお礼メールを作成しましょう！\n\n以下の要素を含めると良いでしょう：\n1. 商談への参加のお礼\n2. 商談内容の簡単な振り返り\n3. 次回の約束の確認\n\nメールの文面を考えてみましょう。";
+        break;
+      case 2: // プレゼン資料の校正
+        initialMessage = "プレゼン資料の校正を始めましょう！\n\n校正したい文章や内容を共有してください。より説得力のある表現方法をアドバイスさせていただきます。";
+        break;
+      case 3: // 議事録の要約作成
+        initialMessage = "議事録の要約を作成しましょう！\n\n議事録の容を共有してください。重要なポイントを抽出し、簡潔な要約にまとめていきます。";
+        break;
+      // 他のミッションも同様に追加...
+      default:
+        initialMessage = `${mission.title}を始めましょう！\n\n${mission.description}\n\nどのような内容から取り組みますか？`;
+    }
+    
+    setChatMessages([{ text: initialMessage, sender: 'bot' }]);
     setShowHints(false);
   };
 
@@ -439,7 +457,8 @@ const TaskArena: React.FC = () => {
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    // isComposingがtrueの場合は日本語入力中
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                       e.preventDefault();
                       handleSendMessage();
                     }
@@ -479,15 +498,6 @@ const TaskArena: React.FC = () => {
                   </ul>
                 </div>
               )}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={completeMission}
-                className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition duration-300"
-              >
-                ミッション完了
-              </button>
             </div>
           </div>
         </div>
