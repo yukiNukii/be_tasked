@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Play, 
@@ -73,8 +73,9 @@ const TaskArena: React.FC = () => {
   const [challengerLevel, setChallengerLevel] = useState<number>(1);
   const [missionTitle, setMissionTitle] = useState<string>('');
   const [missionDescription, setMissionDescription] = useState<string>('');
-  const [missionDifficulty, setMissionDifficulty] = useState<string>('初級');
   const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [currentStep, setCurrentStep] = useState<'title' | 'description'>('title');
+  const [isNextEnabled, setIsNextEnabled] = useState(false);
 
   const normalMissions: Mission[] = [
     {
@@ -119,8 +120,8 @@ const TaskArena: React.FC = () => {
     },
     {
       id: 5,
-      title: "チーム目標設定",
-      description: "チームの四半期目標をSMART原則に基づいて設定します。AIと対話しながら具体的な目標を定めましょう。",
+      title: "チーム目標定",
+      description: "チームの四期目標をSMART原則に基づいて設定します。AIと対話しながら具体的な目標を定めましょう。",
       image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
       icon: <Users className="w-6 h-6" />,
       difficulty: "上級",
@@ -211,11 +212,11 @@ const TaskArena: React.FC = () => {
     },
     {
       level: 2,
-      description: "AIに少し慣れてきた方",
+      description: "AIに少し慣れて方",
       recommendedTopics: [
         "趣味や興味についの会話",
-        "簡単な意見交換",
-        "基本的なビジネストピック"
+        "簡単な意見交",
+        "本的なビジネストピック"
       ]
     },
     {
@@ -251,20 +252,42 @@ const TaskArena: React.FC = () => {
     return feedback;
   };
 
-  const handleCreateMission = () => {
-    const feedback = getAIFeedback({
-      title: missionTitle,
-      description: missionDescription,
-      difficulty: missionDifficulty
-    });
+  const handleCreateMission = async () => {
+    try {
+      const prompt = `
+あなたはビジネスミッションの作成を支援するAIアドバイザーです。
+以下のミッション内容を、AI初心者（レベル${challengerLevel}）向けに評価してください。
 
-    setChatMessages([
-      {
-        text: `新しい接待ミッションが作成されました！\n\n題名: ${missionTitle}\n難易度: ${missionDifficulty}\n\nAIアシスタントからのフィードバック:\n${feedback}`,
-        sender: 'system'
-      }
-    ]);
-    setShowPreview(true);
+タイトル: ${missionTitle}
+説明: ${missionDescription}
+
+特に以下の点に注目してアドバイスしてください：
+1. 内容の難易度は初心者に適切か
+2. 説明は分かりやすいか
+3. 具体的な改善案
+
+レベル${challengerLevel}の特徴：
+${challengerLevels[challengerLevel - 1].description}
+`;
+
+      const feedback = await perplexity.chat(prompt);
+      
+      setChatMessages([
+        {
+          text: `新しい接待ミッションが作成されました！\n\n題名: ${missionTitle}\n\nAIアシスタントからのフィードバック:\n${feedback}`,
+          sender: 'system'
+        }
+      ]);
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Create mission error:', error);
+      setChatMessages([
+        {
+          text: "申し訳ありません。ミッション作成中にエラーが発生しました。",
+          sender: 'system'
+        }
+      ]);
+    }
   };
 
   const openMissionDetail = (mission: Mission) => {
@@ -285,7 +308,7 @@ const TaskArena: React.FC = () => {
         break;
       // 他のミッションも同様に追加...
       default:
-        initialMessage = `${mission.title}を始めましょう！\n\n${mission.description}\n\nどのような内容から取り組みますか？`;
+        initialMessage = `${mission.title}を始めましょう！\n\n${mission.description}\n\nどの��うな内容から取り組みますか？`;
     }
     
     setChatMessages([{ text: initialMessage, sender: 'bot' }]);
@@ -341,6 +364,84 @@ const TaskArena: React.FC = () => {
     setShowHints(!showHints);
   };
 
+  // debounce関数を追加
+  const useDebounce = (value: string, delay: number) => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  // handleMissionInputChange関数を修正
+  const handleMissionInputChange = async (
+    field: 'title' | 'description', 
+    value: string
+  ) => {
+    if (field === 'title') {
+      setMissionTitle(value);
+    } else {
+      setMissionDescription(value);
+    }
+
+    // 最初の入力時のみ初期メッセージを表示
+    if (chatMessages.length === 0) {
+      const initialFeedback = `今回の挑戦者はレベル${challengerLevel}（${challengerLevels[challengerLevel - 1].description}）です。
+
+このレベルに適した以下のようなミッションを作成してみましょう：
+
+推奨トピック：
+${challengerLevels[challengerLevel - 1].recommendedTopics.map(topic => `・${topic}`).join('\n')}
+
+それでは、ミッションの内容を入力してください！`;
+
+      setChatMessages([{
+        text: initialFeedback,
+        sender: 'system'
+      }]);
+      return;
+    }
+
+    // タイトルと説明の両方が入力されている場合のみフィードバックを取得
+    if (missionTitle.trim() && missionDescription.trim()) {
+      try {
+        const prompt = `
+あなたはビジネスミッションの作成を支援するAIアドバイザーです。
+以下のミッション内容を、レベル${challengerLevel}の挑戦者向けに評価してください。
+挑戦者の特徴: ${challengerLevels[challengerLevel - 1].description}
+
+タイトル: ${field === 'title' ? value : missionTitle}
+説明: ${field === 'description' ? value : missionDescription}
+
+このミッションの難易度は挑戦者のレベルに適していますか？
+改善点があれば、具体的に指摘してください。
+`;
+
+        const feedback = await perplexity.chat(prompt);
+        
+        setChatMessages(prev => [...prev, {
+          text: feedback,
+          sender: 'system'
+        }]);
+        
+      } catch (error) {
+        console.error('Feedback error:', error);
+        setChatMessages(prev => [...prev, {
+          text: "申し訳ありません。フィードバックの取得中にエラーが発生しました。",
+          sender: 'system'
+        }]);
+      }
+    }
+  };
+
   const CompletionScreen = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="bg-white dark:bg-background-dark rounded-lg w-full max-w-md p-6">
@@ -387,6 +488,28 @@ const TaskArena: React.FC = () => {
       </div>
     </div>
   );
+
+  // activeTabの変更を監視して初期メッセージを表示
+  useEffect(() => {
+    if (activeTab === 'hospitality') {
+      const initialMessage = `今回の挑戦者はレベル${challengerLevel}（${challengerLevels[challengerLevel - 1].description}）です。
+
+このレベルに適した以下のようなミッションを作成してみましょう：
+
+推奨トピック：
+${challengerLevels[challengerLevel - 1].recommendedTopics.map(topic => `・${topic}`).join('\n')}
+
+それでは、ミッションの内容を入力してください！`;
+
+      setChatMessages([{
+        text: initialMessage,
+        sender: 'system'
+      }]);
+    } else {
+      // 通常のミッション一覧に戻る時はメッセージをクリア
+      setChatMessages([]);
+    }
+  }, [activeTab, challengerLevel]);
 
   if (selectedMission) {
     return (
@@ -526,7 +649,7 @@ const TaskArena: React.FC = () => {
               : 'bg-background-light text-text hover:bg-gray-200'
           }`}
         >
-          接待ミッション作成
+          ホスピミッション作成
         </button>
       </div>
 
@@ -535,15 +658,37 @@ const TaskArena: React.FC = () => {
           <div className="max-w-3xl mx-auto">
             <div className="mb-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">接待ミッション作成</h2>
+                <h2 className="text-2xl font-bold">ミッション作成</h2>
                 <div className="flex items-center space-x-2">
                   <UserCheck className="w-5 h-5 text-primary" />
                   <span className="text-gray-600">挑戦者レベル: {challengerLevel}</span>
                 </div>
               </div>
               <p className="text-gray-600 mt-2">
-                AIを初めて使う方でも楽しめるミッションを作成しましょう
+                挑戦者がギリギリ達成できるホスピタリティミッションを作成しましょう
               </p>
+            </div>
+
+            {/* AIフィードバックエリアを上部に移動 */}
+            <div className="mb-6">
+              {chatMessages.length > 0 && (
+                <div className="space-y-4 bg-gray-50 rounded-lg p-4">
+                  {chatMessages.map((message, index) => (
+                    <div
+                      key={index}
+                      className={`p-4 rounded-lg ${
+                        message.sender === 'system'
+                          ? 'bg-green-50 text-gray-800'
+                          : message.sender === 'user'
+                          ? 'bg-blue-50'
+                          : 'bg-gray-50'
+                      }`}
+                    >
+                      <pre className="whitespace-pre-wrap font-sans">{message.text}</pre>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-blue-50 rounded-lg p-4 mb-6">
@@ -563,83 +708,115 @@ const TaskArena: React.FC = () => {
             </div>
 
             <div className="space-y-4 mb-6">
+              {/* タイトル入力部分 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   ミッションタイトル
                 </label>
-                <input
-                  type="text"
-                  value={missionTitle}
-                  onChange={(e) => setMissionTitle(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-primary focus:border-primary"
-                  placeholder="例: 朝の挨拶から始める会話"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ミッション説明
-                </label>
-                <textarea
-                  value={missionDescription}
-                  onChange={(e) => setMissionDescription(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-primary focus:border-primary h-32"
-                  placeholder="ミッションの目的と達成条件を記入してください"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  難易度
-                </label>
-                <select
-                  value={missionDifficulty}
-                  onChange={(e) => setMissionDifficulty(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-primary focus:border-primary"
-                >
-                  <option value="初級">初級</option>
-                  <option value="中級">中級</option>
-                  <option value="上級">上級</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-4">
-              <button
-                onClick={() => setChallengerLevel(prev => Math.min(prev + 1, 3))}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                挑戦者レベルを上げる
-              </button>
-              <button
-                onClick={handleCreateMission}
-                className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition duration-300"
-              >
-                ミッションを作成
-              </button>
-            </div>
-
-            {showPreview && chatMessages.length > 0 && (
-              <div className="mt-8 border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">プレビューとフィードバック</h3>
-                <div className="space-y-4">
-                  {chatMessages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={`p-4 rounded-lg ${
-                        message.sender === 'system'
-                          ? 'bg-green-50 text-gray-800'
-                          : message.sender === 'user'
-                          ? 'bg-blue-50'
-                          : 'bg-gray-50'
-                      }`}
-                    >
-                      <pre className="whitespace-pre-wrap font-sans">{message.text}</pre>
+                <div className="space-y-2">
+                  {currentStep === 'title' ? (
+                    <>
+                      <input
+                        type="text"
+                        value={missionTitle}
+                        onChange={(e) => {
+                          setMissionTitle(e.target.value);
+                          setIsNextEnabled(e.target.value.trim().length > 0);
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-primary focus:border-primary"
+                        placeholder="例: メールの返信文を書いてもらう"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          onClick={async () => {
+                            if (missionTitle.trim()) {
+                              try {
+                                const feedback = await perplexity.chat(`このミッションタイトル「${missionTitle}」は、レベル${challengerLevel}の挑戦者に適していますか？`);
+                                setChatMessages(prev => [...prev, {
+                                  text: feedback,
+                                  sender: 'system'
+                                }]);
+                                setCurrentStep('description');
+                              } catch (error) {
+                                console.error('Feedback error:', error);
+                              }
+                            }
+                          }}
+                          disabled={!isNextEnabled}
+                          className={`px-6 py-2 rounded-lg transition duration-300 ${
+                            isNextEnabled 
+                              ? 'bg-primary text-white hover:bg-primary-dark' 
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                        >
+                          次へ
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    // 説明入力時のタイトル表示
+                    <div className="bg-gray-50 px-3 py-2 rounded-lg">
+                      {missionTitle}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
-            )}
+
+              {/* 説明入力部分 */}
+              {currentStep === 'description' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ミッション説明
+                  </label>
+                  <div className="space-y-2">
+                    <textarea
+                      value={missionDescription}
+                      onChange={(e) => {
+                        setMissionDescription(e.target.value);
+                        setIsNextEnabled(e.target.value.trim().length > 0);
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-primary focus:border-primary h-32"
+                      placeholder="ミッションの目的と達成条件を記入してください"
+                    />
+                    <div className="flex justify-between">
+                      <button
+                        onClick={() => {
+                          setCurrentStep('title');
+                          setIsNextEnabled(true);
+                        }}
+                        className="px-6 py-2 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition duration-300"
+                      >
+                        戻る
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (missionDescription.trim()) {
+                            try {
+                              const feedback = await perplexity.chat(`このミッション説明「${missionDescription}」は、レベル${challengerLevel}の挑戦者に適していますか？`);
+                              setChatMessages(prev => [...prev, {
+                                text: feedback,
+                                sender: 'system'
+                              }]);
+                              handleCreateMission();
+                            } catch (error) {
+                              console.error('Feedback error:', error);
+                            }
+                          }
+                        }}
+                        disabled={!isNextEnabled}
+                        className={`px-6 py-2 rounded-lg transition duration-300 ${
+                          isNextEnabled 
+                            ? 'bg-primary text-white hover:bg-primary-dark' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        ミッションを作成
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (

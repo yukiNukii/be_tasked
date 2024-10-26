@@ -14,11 +14,11 @@ export const perplexity = {
           messages: [
             { 
               role: "system", 
-              content: "あなたはビジネスシーンでのコミュニケーションを支援するAIアシスタントです。"
+              content: "あなたはビジネスミッションの作成を支援するAIアシスタントです。フィードバックは必ず1-2文で簡潔に返してください。"
             },
             { 
               role: "user", 
-              content: message 
+              content: `レベル${message.includes('レベル') ? message : '1'}の初心者向けに、以下の内容を評価して1-2文で簡潔にアドバイスしてください：${message}` 
             }
           ],
           max_tokens: 1000,
