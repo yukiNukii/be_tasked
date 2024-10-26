@@ -81,7 +81,7 @@ const TaskArena: React.FC = () => {
     {
       id: 1,
       title: "商談後のお礼メール作成",
-      description: "先日の商談のお礼と、次回の約束を確認するメールを作成します。AIと協力して適切な表現を選びましょう。",
+      description: "先日の商談のお礼と、次回の約束を確認するメールを作成します。AIと協力して適切な表現を選びましう。",
       image: "https://images.unsplash.com/photo-1554774853-aae0a22c8aa4",
       icon: <Mail className="w-6 h-6" />,
       difficulty: "初級",
@@ -212,7 +212,7 @@ const TaskArena: React.FC = () => {
     },
     {
       level: 2,
-      description: "AIに少し慣れて方",
+      description: "AIに少し慣れて",
       recommendedTopics: [
         "趣味や興味についの会話",
         "簡単な意見交",
@@ -254,39 +254,38 @@ const TaskArena: React.FC = () => {
 
   const handleCreateMission = async () => {
     try {
+      // ミッション作成時のプロンプトを修正
       const prompt = `
-あなたはビジネスミッションの作成を支援するAIアドバイザーです。
-以下のミッション内容を、AI初心者（レベル${challengerLevel}）向けに評価してください。
+新しいホスピタリティミッションが作成されました。
+以下の内容を確認し、レベル${challengerLevel}の挑戦者に適しているか、1-2文で評価してください：
 
 タイトル: ${missionTitle}
-説明: ${missionDescription}
+説明文: ${missionDescription}
 
-特に以下の点に注目してアドバイスしてください：
-1. 内容の難易度は初心者に適切か
-2. 説明は分かりやすいか
-3. 具体的な改善案
-
-レベル${challengerLevel}の特徴：
-${challengerLevels[challengerLevel - 1].description}
+挑戦者の特徴: ${challengerLevels[challengerLevel - 1].description}
 `;
 
-      const feedback = await perplexity.chat(prompt);
+      // isHospitality=true を指定して、接待ミッション用のプロンプトを使用
+      const feedback = await perplexity.chat(prompt, false, true);
       
-      setChatMessages([
-        {
-          text: `新しい接待ミッションが作成されました！\n\n題名: ${missionTitle}\n\nAIアシスタントからのフィードバック:\n${feedback}`,
-          sender: 'system'
-        }
-      ]);
-      setShowPreview(true);
+      // メッセージを更新
+      setChatMessages(prev => [...prev, {
+        text: `ミッションが作成されました！\n\n【タイトル】\n${missionTitle}\n\n【説明】\n${missionDescription}\n\n【AIからのフィードバック】\n${feedback}`,
+        sender: 'system'
+      }]);
+
+      // 入力フィールドをクリア
+      setMissionTitle('');
+      setMissionDescription('');
+      setCurrentStep('title');
+      setIsNextEnabled(false);
+      
     } catch (error) {
       console.error('Create mission error:', error);
-      setChatMessages([
-        {
-          text: "申し訳ありません。ミッション作成中にエラーが発生しました。",
-          sender: 'system'
-        }
-      ]);
+      setChatMessages(prev => [...prev, {
+        text: "申し訳ありません。ミッション作成中にエラーが発生しました。",
+        sender: 'system'
+      }]);
     }
   };
 
@@ -298,17 +297,17 @@ ${challengerLevels[challengerLevel - 1].description}
     let initialMessage = "";
     switch (mission.id) {
       case 1: // 商談後のお礼メール作成
-        initialMessage = "商談後のお礼メールを作成しましょう！\n\n以下の要素を含めると良いでしょう：\n1. 商談への参加のお礼\n2. 商談内容の簡単な振り返り\n3. 次回の約束の確認\n\nメールの文面を考えてみましょう。";
+        initialMessage = "商談後のお礼メールの作成をサポートさせていただきます。どのような商談だったか、教えていただけますか？";
         break;
       case 2: // プレゼン資料の校正
-        initialMessage = "プレゼン資料の校正を始めましょう！\n\n校正したい文章や内容を共有してください。より説得力のある表現方法をアドバイスさせていただきます。";
+        initialMessage = "プレゼン資料の校正のお手伝いをさせていただきます。校正したい文章や内容を共有していただけますか？";
         break;
       case 3: // 議事録の要約作成
-        initialMessage = "議事録の要約を作成しましょう！\n\n議事録の容を共有してください。重要なポイントを抽出し、簡潔な要約にまとめていきます。";
+        initialMessage = "議事録の要約作成をお手伝いさせていただきます。要約したい議事録の内容を教えていただけますか？";
         break;
       // 他のミッションも同様に追加...
       default:
-        initialMessage = `${mission.title}を始めましょう！\n\n${mission.description}\n\nどの��うな内容から取り組みますか？`;
+        initialMessage = `${mission.title}のお手伝いをさせていただきます。どのようなことでお困りですか？`;
     }
     
     setChatMessages([{ text: initialMessage, sender: 'bot' }]);
@@ -325,14 +324,12 @@ ${challengerLevels[challengerLevel - 1].description}
   const handleSendMessage = async () => {
     if (userInput.trim()) {
       try {
-        // ユーザーメッセージを表示
         const newUserMessage = { text: userInput, sender: 'user' as const };
         setChatMessages(prev => [...prev, newUserMessage]);
         
-        // perplexityクライアントを使用
-        const response = await perplexity.chat(userInput);
+        // isMission=true, isHospitality=false を指定
+        const response = await perplexity.chat(userInput, true, false);
         
-        // AIの応答を表示
         const botMessage = { 
           text: response, 
           sender: 'bot' as const 
@@ -347,7 +344,6 @@ ${challengerLevels[challengerLevel - 1].description}
         };
         setChatMessages(prev => [...prev, errorMessage]);
       }
-      
       setUserInput('');
     }
   };
@@ -425,7 +421,8 @@ ${challengerLevels[challengerLevel - 1].recommendedTopics.map(topic => `・${top
 改善点があれば、具体的に指摘してください。
 `;
 
-        const feedback = await perplexity.chat(prompt);
+        // isMission=false, isHospitality=true を指定
+        const feedback = await perplexity.chat(prompt, false, true);
         
         setChatMessages(prev => [...prev, {
           text: feedback,
@@ -545,7 +542,7 @@ ${challengerLevels[challengerLevel - 1].recommendedTopics.map(topic => `・${top
             </div>
 
             <div className="mb-6">
-              <h2 className="text-lg font-semibold mb-2">ミッション内容:</h2>
+              <h2 className="text-lg font-semibold mb-2">ミション内容:</h2>
               <p className="text-gray-700">{selectedMission.description}</p>
             </div>
 
