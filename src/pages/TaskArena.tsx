@@ -33,6 +33,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { useTask } from '../contexts/TaskContext';
+import { perplexity } from '../lib/perplexity';
 
 interface Mission {
   id: number;
@@ -99,7 +100,7 @@ const TaskArena: React.FC = () => {
     {
       id: 3,
       title: "議事録の要約作成",
-      description: "長時間の会議の議事録から重要なポイントを抽出し、簡潔な要約を作成します。",
+      description: "長時間の会議の議事録か重要なポイントを抽出し、簡潔な要約を作成します。",
       image: "https://images.unsplash.com/photo-1552664730-d307ca884978",
       icon: <PenTool className="w-6 h-6" />,
       difficulty: "中級",
@@ -118,7 +119,7 @@ const TaskArena: React.FC = () => {
     },
     {
       id: 5,
-      title: "チーム目標の設定",
+      title: "チーム目標���設定",
       description: "チームの四半期目標をSMART原則に基づいて設定します。AIと対話しながら具体的な目標を定めましょう。",
       image: "https://images.unsplash.com/photo-1522071820081-009f0129c71c",
       icon: <Users className="w-6 h-6" />,
@@ -233,7 +234,7 @@ const TaskArena: React.FC = () => {
     let feedback = '';
 
     if (mission.difficulty === '上級' && challengerLevel === 1) {
-      feedback = `このミッションは初めてAIを使う方には難しいかもしれません。
+      feedback = `このミッションは初AIを使う方には難しいかもしれません。
 以下の点の調整を検討してください：
 - より基本的な話題に変更
 - 段階的な指示の追加
@@ -269,7 +270,7 @@ const TaskArena: React.FC = () => {
   const openMissionDetail = (mission: Mission) => {
     setSelectedMission(mission);
     setShowCompletionScreen(false);
-    setChatMessages([{ text: "AIアシスタント: このミッションについて、どのようにお手伝いできますか？", sender: 'bot' }]);
+    setChatMessages([{ text: "AIアシスタト: このミッションについて、どのようにお手伝いできますか？", sender: 'bot' }]);
     setShowHints(false);
   };
 
@@ -280,15 +281,32 @@ const TaskArena: React.FC = () => {
     setShowHints(false);
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (userInput.trim()) {
-      setChatMessages([...chatMessages, { text: userInput, sender: 'user' }]);
-      setTimeout(() => {
-        setChatMessages(prev => [...prev, { 
-          text: "承知しました。それについて一緒に考えていきましょう。まずは...", 
-          sender: 'bot' 
-        }]);
-      }, 1000);
+      try {
+        // ユーザーメッセージを表示
+        const newUserMessage = { text: userInput, sender: 'user' as const };
+        setChatMessages(prev => [...prev, newUserMessage]);
+        
+        // perplexityクライアントを使用
+        const response = await perplexity.chat(userInput);
+        
+        // AIの応答を表示
+        const botMessage = { 
+          text: response, 
+          sender: 'bot' as const 
+        };
+        setChatMessages(prev => [...prev, botMessage]);
+        
+      } catch (error) {
+        console.error('Chat error:', error);
+        const errorMessage = { 
+          text: "申し訳ありません。エラーが発生しました。" + (error instanceof Error ? error.message : ''), 
+          sender: 'bot' as const 
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+      }
+      
       setUserInput('');
     }
   };
@@ -420,6 +438,12 @@ const TaskArena: React.FC = () => {
                   type="text"
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
                   placeholder="メッセージを入力..."
                   className="flex-1 bg-transparent border-none focus:outline-none px-2"
                 />
